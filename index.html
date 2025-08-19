@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tokens, Embeddings e Bancos Vetoriais</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Incluindo OrbitControls para navegação 3D -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8;
+            color: #1e293b;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 900px;
+        }
+        .section-title {
+            color: #0c4a6e;
+            font-weight: 700;
+            border-bottom: 2px solid #38bdf8;
+            padding-bottom: 0.5rem;
+        }
+        .card {
+            background-color: white;
+            border-radius: 1rem;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+        }
+        .token-item {
+            display: inline-block;
+            background-color: #e0f2fe;
+            color: #0c4a6e;
+            padding: 0.25rem 0.5rem;
+            margin: 0.25rem;
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            animation: fadeIn 0.5s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.9); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        .search-item {
+            background-color: #f1f5f9;
+            border-radius: 0.75rem;
+            border: 2px solid transparent;
+            transition: all 0.2s ease;
+        }
+        .search-item.highlighted {
+            border-color: #22c55e;
+            background-color: #f0fdf4;
+        }
+        .search-item.highlighted .similarity-score {
+            background-color: #22c55e;
+            color: white;
+        }
+        #embedding-3d-container {
+            position: relative;
+            height: 400px;
+            width: 100%;
+        }
+        #tooltip {
+            position: absolute; /* Ajustado para 'absolute' */
+            top: 1rem;
+            right: 1rem;
+            background-color: rgba(30, 41, 59, 0.85);
+            color: white;
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.5rem;
+            pointer-events: none;
+            display: none;
+            white-space: nowrap;
+            z-index: 1000;
+            transition: opacity 0.2s ease-in-out;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body class="p-6 md:p-10">
+
+    <div class="container mx-auto">
+        <header class="text-center mb-10 md:mb-16">
+            <h1 class="text-3xl md:text-5xl font-bold text-gray-800 mb-2">A Jornada do Texto para a IA</h1>
+            <p class="text-lg md:text-xl text-gray-600">Entenda os três pilares que permitem aos modelos de IA processar a linguagem humana.</p>
+        </header>
+
+        <!-- Seção de Tokens -->
+        <section class="card p-6 md:p-8 mb-12">
+            <h2 class="text-2xl section-title mb-4">1. Tokens: Os Blocos de Construção</h2>
+            <p class="text-gray-700 mb-6">
+                Antes de processar qualquer texto, um modelo de IA o quebra em pequenas unidades chamadas <strong>tokens</strong>. Pense nos tokens como os tijolos de uma frase. Eles podem ser palavras inteiras, partes de palavras, ou até mesmo sinais de pontuação. Essa quebra é o primeiro passo para a IA "ler" e entender o texto.
+            </p>
+            <div class="bg-gray-50 p-6 rounded-xl border border-gray-200">
+                <label for="token-input" class="block font-medium mb-2 text-gray-800">Digite uma frase para ver como ela é transformada em tokens:</label>
+                <input type="text" id="token-input" placeholder="Ex: A inteligência artificial é fascinante!" class="w-full p-3 mb-4 rounded-lg border-2 border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 transition">
+                <div id="token-output" class="flex flex-wrap"></div>
+            </div>
+        </section>
+
+        <!-- Seção de Embeddings -->
+        <section class="card p-6 md:p-8 mb-12">
+            <h2 class="text-2xl section-title mb-4">2. Embeddings: O Mapa da Linguagem</h2>
+            <p class="text-gray-700 mb-6">
+                Depois de tokenizar o texto, cada token é transformado em um <strong>embedding</strong>. Um embedding é um vetor (uma lista de números) que representa o significado de um token. Palavras com significados parecidos, como "rei" e "rainha" ou "gato" e "cachorro", são colocadas próximas umas das outras neste mapa de ideias.
+            </p>
+            <div class="bg-gray-50 p-6 rounded-xl border border-gray-200">
+                <div id="embedding-3d-container" class="rounded-lg bg-white border border-gray-300"></div>
+                <div id="tooltip" class="rounded-lg shadow-lg hidden"></div>
+            </div>
+        </section>
+
+        <!-- Seção de Bancos Vetoriais -->
+        <section class="card p-6 md:p-8 mb-12">
+            <h2 class="text-2xl section-title mb-4">3. Bancos Vetoriais: A Busca de Significado</h2>
+            <p class="text-gray-700 mb-6">
+                Um <strong>banco de dados vetorial</strong> armazena os embeddings e permite que a IA faça buscas por similaridade. Em vez de procurar por palavras-chave, ele encontra os documentos que possuem um significado mais próximo da sua consulta. Veja alguns exemplos:
+            </p>
+            <div class="bg-gray-50 p-6 rounded-xl border border-gray-200 space-y-4">
+                
+                <!-- Exemplo 1: Animais de Estimação -->
+                <div class="border-b pb-4">
+                    <p class="font-bold text-gray-800 mb-2">Consulta:</p>
+                    <p class="bg-blue-100 text-blue-800 p-2 rounded-lg font-medium">"Qual animal é um bom amigo?"</p>
+                    <p class="font-bold text-gray-800 my-2">Resultados Mais Similares:</p>
+                    <div class="space-y-2">
+                        <div class="search-item highlighted p-4">
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm font-semibold text-gray-900">Ela passeia com o cachorro todos os dias.</span>
+                                <span class="similarity-score bg-gray-200 text-gray-600 text-xs font-bold py-1 px-2 rounded-full">Similaridade: 0.95</span>
+                            </div>
+                        </div>
+                        <div class="search-item p-4">
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm font-semibold text-gray-900">Meu gato gosta de dormir no sol.</span>
+                                <span class="similarity-score bg-gray-200 text-gray-600 text-xs font-bold py-1 px-2 rounded-full">Similaridade: 0.88</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Exemplo 2: Transporte -->
+                <div class="border-b pb-4">
+                    <p class="font-bold text-gray-800 mb-2">Consulta:</p>
+                    <p class="bg-blue-100 text-blue-800 p-2 rounded-lg font-medium">"Veículos para transporte"</p>
+                    <p class="font-bold text-gray-800 my-2">Resultados Mais Similares:</p>
+                    <div class="space-y-2">
+                        <div class="search-item highlighted p-4">
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm font-semibold text-gray-900">Precisamos de um novo carro para a família.</span>
+                                <span class="similarity-score bg-gray-200 text-gray-600 text-xs font-bold py-1 px-2 rounded-full">Similaridade: 0.92</span>
+                            </div>
+                        </div>
+                        <div class="search-item p-4">
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm font-semibold text-gray-900">Comprei uma bicicleta nova para ir ao trabalho.</span>
+                                <span class="similarity-score bg-gray-200 text-gray-600 text-xs font-bold py-1 px-2 rounded-full">Similaridade: 0.85</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Exemplo 3: Realeza -->
+                <div>
+                    <p class="font-bold text-gray-800 mb-2">Consulta:</p>
+                    <p class="bg-blue-100 text-blue-800 p-2 rounded-lg font-medium">"Personagens da realeza"</p>
+                    <p class="font-bold text-gray-800 my-2">Resultados Mais Similares:</p>
+                    <div class="space-y-2">
+                        <div class="search-item highlighted p-4">
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm font-semibold text-gray-900">O rei e a rainha visitaram a cidade.</span>
+                                <span class="similarity-score bg-gray-200 text-gray-600 text-xs font-bold py-1 px-2 rounded-full">Similaridade: 0.98</span>
+                            </div>
+                        </div>
+                        <div class="search-item p-4">
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm font-semibold text-gray-900">A empresa de tecnologia lançou um novo software.</span>
+                                <span class="similarity-score bg-gray-200 text-gray-600 text-xs font-bold py-1 px-2 rounded-full">Similaridade: 0.21</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        // Scripts for interactive elements
+
+        // --- TOKENS SECTION ---
+        const tokenInput = document.getElementById('token-input');
+        const tokenOutput = document.getElementById('token-output');
+
+        // Função para tokenizar uma frase e exibi-la
+        function tokenizeAndDisplay(text) {
+            tokenOutput.innerHTML = '';
+            // Usa regex para dividir por espaços e também manter a pontuação como tokens separados
+            const tokens = text.toLowerCase().match(/\b\w+\b|\S/g) || [];
+            tokens.forEach(token => {
+                const tokenSpan = document.createElement('span');
+                tokenSpan.textContent = token;
+                tokenSpan.classList.add('token-item');
+                tokenOutput.appendChild(tokenSpan);
+            });
+        }
+
+        tokenInput.addEventListener('input', (event) => {
+            tokenizeAndDisplay(event.target.value);
+        });
+
+        // Inicializa com uma frase de exemplo
+        tokenizeAndDisplay("A inteligência artificial é fascinante!");
+
+
+        // --- EMBEDDINGS 3D SECTION (Interactive) ---
+        const threeContainer = document.getElementById('embedding-3d-container');
+        const tooltip = document.getElementById('tooltip');
+        let scene, camera, renderer, controls, raycaster, mouse;
+        let spheres = []; // Array para armazenar os objetos de esfera
+
+        function init3D() {
+            // Cria a cena
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0xffffff);
+
+            // Cria a câmera
+            camera = new THREE.PerspectiveCamera(75, threeContainer.clientWidth / threeContainer.clientHeight, 0.1, 1000);
+            camera.position.set(15, 15, 20);
+
+            // Cria o renderizador
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(threeContainer.clientWidth, threeContainer.clientHeight);
+            threeContainer.appendChild(renderer.domElement);
+
+            // Adiciona OrbitControls para interatividade
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true; // Permite um movimento suave
+            controls.dampingFactor = 0.05;
+            controls.screenSpacePanning = false;
+            controls.minDistance = 10;
+            controls.maxDistance = 50;
+
+            // Adiciona Raycaster e Mouse
+            raycaster = new THREE.Raycaster();
+            mouse = new THREE.Vector2();
+
+            // Adiciona luzes
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.8);
+            scene.add(ambientLight);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+            directionalLight.position.set(10, 10, 10);
+            scene.add(directionalLight);
+
+            // Adiciona eixos (semelhante ao plano cartesiano)
+            const axesHelper = new THREE.AxesHelper(15);
+            scene.add(axesHelper);
+
+            // Adiciona plano de grade para senso de profundidade
+            const gridHelper = new THREE.GridHelper(30, 30, 0xaaaaaa, 0xdddddd);
+            gridHelper.position.y = -0.01; // Para evitar z-fighting com o plano
+            scene.add(gridHelper);
+
+            addElements();
+
+            // Adiciona evento de mousemove para o tooltip
+            threeContainer.addEventListener('mousemove', onMouseMove, false);
+
+            // Resizing handler
+            window.addEventListener('resize', onWindowResize, false);
+        }
+
+        function onWindowResize() {
+            camera.aspect = threeContainer.clientWidth / threeContainer.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(threeContainer.clientWidth, threeContainer.clientHeight);
+        }
+
+        function onMouseMove(event) {
+            // Calcular a posição normalizada do mouse (-1 a +1)
+            const rect = threeContainer.getBoundingClientRect();
+            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+        }
+
+        function checkIntersections() {
+            // Atualiza o raycaster com a câmera e a posição do mouse
+            raycaster.setFromCamera(mouse, camera);
+
+            // Calcula objetos que interceptam o raio
+            const intersects = raycaster.intersectObjects(spheres);
+
+            if (intersects.length > 0) {
+                // Se houver uma interseção, mostra o tooltip
+                const intersectedObject = intersects[0].object;
+                const label = intersectedObject.userData.label;
+                
+                tooltip.style.display = 'block';
+                tooltip.innerText = label;
+
+            } else {
+                // Se não houver interseção, esconde o tooltip
+                tooltip.style.display = 'none';
+            }
+        }
+
+        function addElements() {
+             // Dados de embedding simulados em 3D (coordenadas x, y, z)
+            const embeddingData3D = {
+                gato: { x: -5, y: 8, z: 2, color: '#4A90E2', label: 'Gato' },
+                cachorro: { x: -6, y: 7.5, z: 1.5, color: '#4A90E2', label: 'Cachorro' },
+                carro: { x: 8.5, y: 2, z: 9, color: '#7ED321', label: 'Carro' },
+                bicicleta: { x: 8, y: 2.5, z: 8, color: '#7ED321', label: 'Bicicleta' },
+                rainha: { x: 4.5, y: 5.5, z: 5, color: '#9B59B6', label: 'Rainha' },
+                rei: { x: 5, y: 6, z: 5.5, color: '#9B59B6', label: 'Rei' },
+            };
+            
+            // Adiciona pontos e seus textos
+            const pointGeometry = new THREE.SphereGeometry(0.5, 32, 32);
+            for (const key in embeddingData3D) {
+                const data = embeddingData3D[key];
+                const material = new THREE.MeshLambertMaterial({ color: data.color });
+                const point = new THREE.Mesh(pointGeometry, material);
+                point.position.set(data.x, data.y, data.z);
+                point.userData.label = data.label; // Armazena o rótulo no userData do objeto THREE.js
+                scene.add(point);
+                spheres.push(point); // Adiciona o ponto ao array de esferas
+            }
+        }
+
+        function animate3D() {
+            requestAnimationFrame(animate3D);
+            controls.update(); // Atualiza os controles
+            checkIntersections(); // Checa por interseções a cada frame
+            renderer.render(scene, camera);
+        }
+        
+        // Inicializa a cena 3D quando a página carrega
+        window.addEventListener('load', () => {
+            init3D();
+            animate3D();
+        });
+    </script>
+</body>
+</html>
