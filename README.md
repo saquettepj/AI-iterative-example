@@ -16,9 +16,7 @@ Este projeto é uma página interativa que explica, de forma visual e didática,
 
 Acesse a página diretamente pelo GitHub Pages:
 
-```
-https://saquettepj.github.io/AI-iterative-example/
-```
+➡️ [Veja o relatório online](https://saquettepj.github.io/AI-iterative-example/)
 
 > Substitua `SEU_USUARIO` pelo seu nome de usuário do GitHub.
 
